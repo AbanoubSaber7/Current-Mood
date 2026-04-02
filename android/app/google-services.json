@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "480196148532",
+    "project_id": "current-mode",
+    "storage_bucket": "current-mode.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:480196148532:android:dca7bbd7e0afcdfc1d3961",
+        "android_client_info": {
+          "package_name": "com.example.mood_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCY-H525jNYzG9QRkFa5p6vWvM0wef35uo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
