@@ -9,7 +9,7 @@ import 'dart:typed_data';
 import 'package:image/image.dart' as img;
 
 class DetectionScreen extends StatefulWidget {
-  final String userName; // استلام الاسم من Login أو Register
+  final String userName;
   const DetectionScreen({Key? key, required this.userName}) : super(key: key);
 
   @override
@@ -39,14 +39,13 @@ class _DetectionScreenState extends State<DetectionScreen> {
 
   Future<void> loadModel() async {
     try {
-      _interpreter = await Interpreter.fromAsset('assets/model/emotion102_model.tflite');
-      print("✅ Model Loaded Successfully");
+      _interpreter = await Interpreter.fromAsset('assets/model/Face_model125.tflite');
+      print("✅ Model Loaded");
     } catch (e) {
-      print("❌ Error loading model: $e");
+      print("❌ Error: $e");
     }
   }
 
-  // --- دوال التقاط الملفات ---
   Future<void> _pickImage(ImageSource source) async {
     final XFile? image = await _picker.pickImage(source: source);
     if (image != null) {
@@ -86,21 +85,24 @@ class _DetectionScreenState extends State<DetectionScreen> {
     }
   }
 
-  // --- معالجة الصورة ---
   List<dynamic> preprocessImage(File file) {
     Uint8List bytes = file.readAsBytesSync();
     img.Image? image = img.decodeImage(bytes);
     if (image == null) return [];
 
     img.Image resized = img.copyResize(image, width: 224, height: 224);
-    var input = List.generate(1, (i) => List.generate(224, (j) => List.generate(224, (k) => List.filled(3, 0.0))));
+    img.Image grayscale = img.grayscale(resized);
+
+    var input = List.generate(1, (i) =>
+        List.generate(224, (j) =>
+            List.generate(224, (k) => List.filled(1, 0.0))
+        )
+    );
 
     for (int y = 0; y < 224; y++) {
       for (int x = 0; x < 224; x++) {
-        var pixel = resized.getPixel(x, y);
-        input[0][y][x][0] = (pixel.r / 127.5) - 1.0;
-        input[0][y][x][1] = (pixel.g / 127.5) - 1.0;
-        input[0][y][x][2] = (pixel.b / 127.5) - 1.0;
+        var pixel = grayscale.getPixel(x, y);
+        input[0][y][x][0] = pixel.r / 255.0;
       }
     }
     return input;
@@ -140,7 +142,7 @@ class _DetectionScreenState extends State<DetectionScreen> {
         isLoading = false;
       });
 
-      await Future.delayed(const Duration(milliseconds: 800));
+      await Future.delayed(const Duration(milliseconds: 1000));
       _navigateToRecommendations(result);
     } catch (e) {
       print("Error: $e");
@@ -188,7 +190,6 @@ class _DetectionScreenState extends State<DetectionScreen> {
               child: Column(
                 children: [
                   const SizedBox(height: 20),
-                  // عرض اسم المستخدم المبعوت من Login/SignUp
                   Text(
                     'Welcome, ${widget.userName}',
                     style: const TextStyle(
@@ -198,7 +199,6 @@ class _DetectionScreenState extends State<DetectionScreen> {
                     ),
                   ),
                   const SizedBox(height: 25),
-
                   Container(
                     width: 250,
                     height: 250,
@@ -218,9 +218,7 @@ class _DetectionScreenState extends State<DetectionScreen> {
                           : const Text("No Item Selected", style: TextStyle(color: Colors.grey)),
                     ),
                   ),
-
                   const SizedBox(height: 25),
-
                   Wrap(
                     spacing: 10,
                     runSpacing: 10,
@@ -233,9 +231,7 @@ class _DetectionScreenState extends State<DetectionScreen> {
                       _buildButton('Take Video', Icons.videocam, () => _pickVideo(ImageSource.camera)),
                     ],
                   ),
-
                   const SizedBox(height: 30),
-
                   const Text(
                     "Or tell us how you feel directly:",
                     style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xFF8B4513)),
@@ -270,9 +266,7 @@ class _DetectionScreenState extends State<DetectionScreen> {
                       ),
                     ),
                   ),
-
                   const SizedBox(height: 35),
-
                   SizedBox(
                     width: 220,
                     height: 50,
@@ -293,9 +287,7 @@ class _DetectionScreenState extends State<DetectionScreen> {
                       ),
                     ),
                   ),
-
                   const SizedBox(height: 20),
-
                   if (predictedEmotion != null)
                     Container(
                       padding: const EdgeInsets.all(10),
