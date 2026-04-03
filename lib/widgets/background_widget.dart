@@ -1,19 +1,11 @@
 import 'package:flutter/material.dart';
 
-class ThemeColors {
-  static const Color accentColor = Color(0xFFA57D7A); // Used for blobs and buttons
-  static const Color darkTextColor = Color(0xFF6B4542);
-  static const Color redColor = Color(0xFFB14844); // Predict emotion button
-  static const Color cardColor = Color(0xFFF2DDD6); // Used for cards
-  static const Color gradientStart = Color(0xFFC04F4C);
-  static const Color gradientEnd = Color(0xFF5F2753);
-}
-
 class BackgroundTheme {
   final Color bgColor;
   final Color blobColor;
+  final Color textColor; // أضفنا متغير للون النص
 
-  BackgroundTheme(this.bgColor, this.blobColor);
+  BackgroundTheme(this.bgColor, this.blobColor, this.textColor);
 }
 
 class BackgroundWidget extends StatelessWidget {
@@ -25,118 +17,68 @@ class BackgroundWidget extends StatelessWidget {
   BackgroundTheme _getTheme() {
     switch (emotion.toLowerCase()) {
       case 'sad':
-        return BackgroundTheme(Colors.black, Colors.grey.withValues(alpha: 0.3));
+      // خلفية سوداء تماماً، بلوبس رمادية، ونص أبيض
+        return BackgroundTheme(Colors.black, Colors.white10, Colors.white);
       case 'neutral':
-        return BackgroundTheme(const Color(0xFFD0AE8F), const Color(0xFFB18F6A));
+        return BackgroundTheme(const Color(0xFFF5F5F5), const Color(0xFFBDC3C7), Colors.black87);
       case 'angry':
-        return BackgroundTheme(const Color(0xFFF0DFD1), const Color(0xFFD5B495));
-
-    // --- الإضافات الجديدة هنا ---
+      // خلفية حمراء داكنة جداً، ونص أبيض للوضوح
+        return BackgroundTheme(const Color(0xFF4E1D1D), const Color(0xFFC0392B), Colors.white);
       case 'fear':
-      // ألوان توحي بالخوف (بنفسجي غامق مع دوائر أغمق)
-        return BackgroundTheme(const Color(0xFF2C1A35), const Color(0xFF4A2B5A));
+        return BackgroundTheme(const Color(0xFF1A1A2E), const Color(0xFF16213E), Colors.white);
       case 'disgust':
-      // ألوان توحي بالاشمئزاز (درجات الأخضر الزيتوني)
-        return BackgroundTheme(const Color(0xFF4A5D23), const Color(0xFF6B8E23));
+        return BackgroundTheme(const Color(0xFF1E2611), const Color(0xFF3B4D28), Colors.white);
       case 'surprise':
-      // ألوان توحي بالمفاجأة (درجات البرتقالي أو الوردي الساطع)
-        return BackgroundTheme(const Color(0xFFFFF4E1), const Color(0xFFFFCC80));
-    // --------------------------
-
+        return BackgroundTheme(const Color(0xFFFFF9E3), const Color(0xFFF1C40F), Colors.black87);
       case 'happy':
       default:
-        return BackgroundTheme(Colors.white, ThemeColors.accentColor);
+        return BackgroundTheme(const Color(0xFFFFF5F5), const Color(0xFFFADBD8), Colors.black87);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = _getTheme();
-    // استخدمت AnimatedContainer عشان الألوان تتغير بنعومة لما تختار من القائمة
+
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 500),
+      duration: const Duration(milliseconds: 600),
       color: theme.bgColor,
       child: Stack(
         children: [
-          // Top Left Blob
-          Positioned(
-            top: -50,
-            left: -30,
-            child: Container(
-              width: 150,
-              height: 150,
-              decoration: BoxDecoration(
-                color: theme.blobColor.withValues(alpha: 0.4),
-                shape: BoxShape.circle,
+          // Blobs
+          _buildBlob(top: -70, left: -40, size: 200, color: theme.blobColor, opacity: 0.3),
+          _buildBlob(bottom: -100, left: -50, size: 300, color: theme.blobColor, opacity: 0.2),
+
+          // هنا بنستخدم DefaultTextStyle عشان أي نص جوه الـ child
+          // يأخد اللون المناسب للخلفية تلقائياً لو مش متحدد له لون يدوي
+          DefaultTextStyle(
+            style: TextStyle(color: theme.textColor),
+            child: Theme(
+              // ده بيغير لون الـ Icons كمان عشان تظهر على الخلفية الغامقة
+              data: Theme.of(context).copyWith(
+                iconTheme: IconThemeData(color: theme.textColor),
               ),
+              child: SafeArea(child: child),
             ),
           ),
-          Positioned(
-            top: -20,
-            left: -60,
-            child: Container(
-              width: 120,
-              height: 120,
-              decoration: BoxDecoration(
-                color: theme.blobColor.withValues(alpha: 0.8),
-                shape: BoxShape.circle,
-              ),
-            ),
-          ),
-          // Top Right Blob
-          Positioned(
-            top: -40,
-            right: -20,
-            child: Container(
-              width: 100,
-              height: 100,
-              decoration: BoxDecoration(
-                color: theme.blobColor.withValues(alpha: 0.4),
-                shape: BoxShape.circle,
-              ),
-            ),
-          ),
-          Positioned(
-            top: 20,
-            right: -40,
-            child: Container(
-              width: 80,
-              height: 150,
-              decoration: BoxDecoration(
-                color: theme.blobColor.withValues(alpha: 0.6),
-                borderRadius: BorderRadius.circular(40),
-              ),
-            ),
-          ),
-          // Bottom Left Blob
-          Positioned(
-            bottom: -60,
-            left: -20,
-            child: Container(
-              width: 180,
-              height: 180,
-              decoration: BoxDecoration(
-                color: theme.blobColor.withValues(alpha: 0.6),
-                shape: BoxShape.circle,
-              ),
-            ),
-          ),
-          // Bottom Right Blob
-          Positioned(
-            bottom: -50,
-            right: -30,
-            child: Container(
-              width: 160,
-              height: 160,
-              decoration: BoxDecoration(
-                color: theme.blobColor.withValues(alpha: 0.8),
-                shape: BoxShape.circle,
-              ),
-            ),
-          ),
-          // Main Content
-          SafeArea(child: child),
         ],
+      ),
+    );
+  }
+
+  Widget _buildBlob({double? top, double? bottom, double? left, double? right, required double size, required Color color, required double opacity}) {
+    return Positioned(
+      top: top,
+      bottom: bottom,
+      left: left,
+      right: right,
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: color.withOpacity(opacity),
+          shape: BoxShape.circle,
+        ),
       ),
     );
   }

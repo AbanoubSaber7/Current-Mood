@@ -1,12 +1,13 @@
-import 'package:flutter/material.dart';
-import 'package:mood_app/widgets/background_widget.dart';
-import 'package:mood_app/screens/recommendations_screen.dart';
 import 'dart:io';
+import 'dart:typed_data';
+import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:tflite_flutter/tflite_flutter.dart';
-import 'dart:typed_data';
 import 'package:image/image.dart' as img;
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:mood_app/widgets/background_widget.dart';
+import 'package:mood_app/screens/recommendations_screen.dart';
 
 class DetectionScreen extends StatefulWidget {
   final String userName;
@@ -28,7 +29,13 @@ class _DetectionScreenState extends State<DetectionScreen> {
   Interpreter? _interpreter;
 
   final List<String> emotions = [
-    'Surprise', 'Disgust', 'Fear', 'Happy', 'Sad', 'Angry', 'Neutral'
+    'Angry',
+    'Disgust',
+    'Fear',
+    'Happy',
+    'Neutral',
+    'Sad',
+    'Surprise'
   ];
 
   @override
@@ -40,10 +47,16 @@ class _DetectionScreenState extends State<DetectionScreen> {
   Future<void> loadModel() async {
     try {
       _interpreter = await Interpreter.fromAsset('assets/model/Face_model125.tflite');
-      print("✅ Model Loaded");
     } catch (e) {
-      print("❌ Error: $e");
+      debugPrint("Error loading model: $e");
     }
+  }
+
+  Future<void> handleLogout() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.clear();
+    if (!mounted) return;
+    Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
   }
 
   Future<void> _pickImage(ImageSource source) async {
@@ -90,32 +103,23 @@ class _DetectionScreenState extends State<DetectionScreen> {
     img.Image? image = img.decodeImage(bytes);
     if (image == null) return [];
 
-    img.Image resized = img.copyResize(image, width: 224, height: 224);
-    img.Image grayscale = img.grayscale(resized);
+    img.Image resized = img.copyResize(image, width: 48, height: 48);
 
     var input = List.generate(1, (i) =>
-        List.generate(224, (j) =>
-            List.generate(224, (k) => List.filled(1, 0.0))
+        List.generate(48, (j) =>
+            List.generate(48, (k) => List.filled(3, 0.0))
         )
     );
 
-    for (int y = 0; y < 224; y++) {
-      for (int x = 0; x < 224; x++) {
-        var pixel = grayscale.getPixel(x, y);
+    for (int y = 0; y < 48; y++) {
+      for (int x = 0; x < 48; x++) {
+        var pixel = resized.getPixel(x, y);
         input[0][y][x][0] = pixel.r / 255.0;
+        input[0][y][x][1] = pixel.g / 255.0;
+        input[0][y][x][2] = pixel.b / 255.0;
       }
     }
     return input;
-  }
-
-  Future<void> _handleNavigation() async {
-    if (manualSelectedEmotion != null && _pickedFile == null) {
-      _navigateToRecommendations(manualSelectedEmotion!);
-      return;
-    }
-    if (_pickedFile != null) {
-      await _predictFromModel();
-    }
   }
 
   Future<void> _predictFromModel() async {
@@ -125,6 +129,7 @@ class _DetectionScreenState extends State<DetectionScreen> {
     try {
       var input = preprocessImage(_pickedFile!);
       var output = List.filled(1 * 7, 0.0).reshape([1, 7]);
+
       _interpreter!.run(input, output);
 
       int index = 0;
@@ -142,11 +147,22 @@ class _DetectionScreenState extends State<DetectionScreen> {
         isLoading = false;
       });
 
-      await Future.delayed(const Duration(milliseconds: 1000));
+      await Future.delayed(const Duration(milliseconds: 800));
       _navigateToRecommendations(result);
     } catch (e) {
-      print("Error: $e");
       setState(() => isLoading = false);
+    }
+  }
+
+  Future<void> _handleNavigation() async {
+    if (manualSelectedEmotion != null && _pickedFile == null) {
+      _navigateToRecommendations(manualSelectedEmotion!);
+      return;
+    }
+    if (_pickedFile != null && isImage) {
+      await _predictFromModel();
+    } else if (_pickedFile != null && !isImage) {
+      _navigateToRecommendations("Neutral");
     }
   }
 
@@ -180,6 +196,23 @@ class _DetectionScreenState extends State<DetectionScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        title: const Text("Mood Detection", style: TextStyle(color: Colors.white, fontSize: 18)),
+        backgroundColor: const Color(0xFFC05A4E),
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () {
+            Navigator.pushReplacementNamed(context, '/');
+          },
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.white),
+            onPressed: handleLogout,
+          )
+        ],
+      ),
       body: BackgroundWidget(
         emotion: predictedEmotion ?? manualSelectedEmotion ?? 'Neutral',
         child: SizedBox.expand(
@@ -192,11 +225,7 @@ class _DetectionScreenState extends State<DetectionScreen> {
                   const SizedBox(height: 20),
                   Text(
                     'Welcome, ${widget.userName}',
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF8B4513),
-                    ),
+                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF8B4513)),
                   ),
                   const SizedBox(height: 25),
                   Container(

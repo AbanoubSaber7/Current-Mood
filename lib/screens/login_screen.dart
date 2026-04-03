@@ -15,35 +15,30 @@ class _LoginScreenState extends State<LoginScreen> {
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
   bool isLoading = false;
-  bool _isObscured = true; // التحكم في إظهار/إخفاء الباسورد
+  bool _isObscured = true;
+
+  String? emailError;
+  String? passwordError;
 
   void handleLogin() async {
+    setState(() {
+      emailError = emailController.text.trim().isEmpty ? "Email is required" : null;
+      passwordError = passwordController.text.isEmpty ? "Password is required" : null;
+    });
+
+    if (emailError != null || passwordError != null) return;
+
     String email = emailController.text.trim();
     String password = passwordController.text;
 
-    // 1. التأكد أن الحقول ليست فارغة
-    if (email.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please enter email and password")),
-      );
-      return;
-    }
-
-    // 2. التأكد أن الباسورد لا يقل عن 8 حروف
     if (password.length < 8) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Password must be at least 8 characters long"),
-          backgroundColor: Colors.orange,
-        ),
-      );
+      setState(() => passwordError = "Must be at least 8 characters");
       return;
     }
 
     setState(() => isLoading = true);
 
     try {
-      // البحث في Firestore عن مستخدم يطابق الإيميل والباسورد
       QuerySnapshot querySnapshot = await FirebaseFirestore.instance
           .collection('users')
           .where('email', isEqualTo: email)
@@ -51,12 +46,10 @@ class _LoginScreenState extends State<LoginScreen> {
           .get();
 
       if (querySnapshot.docs.isNotEmpty) {
-        // الحصول على اسم المستخدم الحقيقي
         String realName = querySnapshot.docs.first.get('full_name');
-
-        // حفظ الاسم محلياً
         SharedPreferences prefs = await SharedPreferences.getInstance();
         await prefs.setString('user_name', realName);
+        await prefs.setBool('isLoggedIn', true);
 
         if (!mounted) return;
         Navigator.pushReplacement(
@@ -105,12 +98,12 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   const SizedBox(height: 30),
-
-                  // خانة الإيميل
                   TextField(
                     controller: emailController,
+                    onChanged: (_) => setState(() => emailError = null),
                     decoration: InputDecoration(
                       labelText: "Email",
+                      errorText: emailError,
                       prefixIcon: const Icon(Icons.email, color: Color(0xFFC04F4C)),
                       filled: true,
                       fillColor: Colors.white,
@@ -118,18 +111,25 @@ class _LoginScreenState extends State<LoginScreen> {
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide.none,
                       ),
+                      focusedErrorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.red, width: 2),
+                      ),
+                      errorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.red, width: 1),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 15),
-
-                  // خانة الباسورد المعدلة
                   TextField(
                     controller: passwordController,
-                    obscureText: _isObscured, // هنا نتحكم في الإخفاء
+                    obscureText: _isObscured,
+                    onChanged: (_) => setState(() => passwordError = null),
                     decoration: InputDecoration(
                       labelText: "Password",
+                      errorText: passwordError,
                       prefixIcon: const Icon(Icons.lock, color: Color(0xFFC04F4C)),
-                      // أيقونة العين لإظهار/إخفاء الباسورد
                       suffixIcon: IconButton(
                         icon: Icon(
                           _isObscured ? Icons.visibility_off : Icons.visibility,
@@ -147,11 +147,17 @@ class _LoginScreenState extends State<LoginScreen> {
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide.none,
                       ),
+                      focusedErrorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.red, width: 2),
+                      ),
+                      errorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.red, width: 1),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 25),
-
-                  // زر تسجيل الدخول
                   isLoading
                       ? const CircularProgressIndicator(color: Color(0xFFC04F4C))
                       : SizedBox(
@@ -176,8 +182,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   const SizedBox(height: 20),
-
-                  // رابط التسجيل
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [

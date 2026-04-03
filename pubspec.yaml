@@ -33,4 +33,3 @@ flutter:
 
   assets:
     - assets/model/Face_model125.tflite
-    - assets/images/

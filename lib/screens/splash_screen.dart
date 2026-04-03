@@ -1,8 +1,34 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mood_app/screens/login_screen.dart';
+import 'package:mood_app/screens/detection_screen.dart';
 
 class SplashScreen extends StatelessWidget {
   const SplashScreen({Key? key}) : super(key: key);
+
+  Future<void> _handleStartNavigation(BuildContext context) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    bool isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
+    String? userName = prefs.getString('user_name');
+
+    if (!context.mounted) return;
+
+    if (isLoggedIn) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => DetectionScreen(userName: userName ?? "User"),
+        ),
+      );
+    } else {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const LoginScreen(),
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -41,14 +67,7 @@ class SplashScreen extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.only(bottom: 60.0),
                   child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => LoginScreen(),
-                        ),
-                      );
-                    },
+                    onPressed: () => _handleStartNavigation(context),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFFC04F4C),
                       padding: const EdgeInsets.symmetric(

@@ -8,8 +8,9 @@ class VideosScreen extends StatelessWidget {
   const VideosScreen({Key? key, required this.emotion}) : super(key: key);
 
   Future<void> _launchUrl(String url) async {
-    if (!await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication)) {
-      throw Exception('Could not launch $url');
+    final Uri uri = Uri.parse(url);
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      debugPrint('Could not launch $url');
     }
   }
 
@@ -18,28 +19,36 @@ class VideosScreen extends StatelessWidget {
       onTap: () => _launchUrl(url),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border.all(color: ThemeColors.redColor, width: 2),
-          borderRadius: BorderRadius.circular(10),
+          color: Colors.white.withOpacity(0.9),
+          borderRadius: BorderRadius.circular(15),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
-        padding: const EdgeInsets.all(8.0),
+        padding: const EdgeInsets.all(12.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const CircleAvatar(
-              backgroundColor: Colors.black87,
-              radius: 30,
-              child: Icon(Icons.play_arrow, color: Colors.white, size: 40),
+              backgroundColor: Color(0xFFC04F4C),
+              radius: 25,
+              child: Icon(Icons.play_arrow_rounded, color: Colors.white, size: 35),
             ),
-            const SizedBox(height: 15),
-            Expanded(
-              child: Text(
-                title,
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+            const SizedBox(height: 12),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                  color: Color(0xFF4E342E)
               ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
@@ -51,69 +60,81 @@ class VideosScreen extends StatelessWidget {
     switch (emotion.toLowerCase()) {
       case 'sad':
         return [
-          _buildVideoCard('فيديوهات مضحكة', 'https://m.youtube.com/results?search_query=%D9%81%D9%8A%D8%AF%D9%8A%D9%88%D9%87%D8%A7%D8%AA+%D9%85%D8%B6%D8%AD%D9%83%D8%A9'),
-          _buildVideoCard('Cute Baby Laughs', 'https://m.youtube.com/results?search_query=cute+baby+laughs'),
-          _buildVideoCard('كوميديا مصرية', 'https://m.youtube.com/results?search_query=%D9%83%D9%88%D9%85%D9%8A%D8%AF%D9%8A%D8%A7+%D9%85%D8%B5%D8%B1%D9%8A%D8%A9'),
-          _buildVideoCard('Silly Cats', 'https://m.youtube.com/results?search_query=silly+cats'),
-          _buildVideoCard('أجمل المقاطع الرائجة', 'https://m.youtube.com/results?search_query=%D9%85%D9%82%D8%A7%D8%B7%D8%B9+%D8%B1%D8%A7%D8%A6%D8%AC%D8%A9'),
-          _buildVideoCard('Baby Animals', 'https://m.youtube.com/results?search_query=baby+animals+compilation'),
-        ];
-      case 'neutral':
-        return [
-          _buildVideoCard('وثائقي الطبيعة', 'https://m.youtube.com/results?search_query=%D9%88%D8%AB%D8%A7%D8%A6%D9%82%D9%8A+%D8%A7%D9%84%D8%B7%D8%A8%D9%8A%D8%B9%D8%A9'),
-          _buildVideoCard('Peaceful Nature Walk', 'https://m.youtube.com/results?search_query=peaceful+nature+walk'),
-          _buildVideoCard('أجمل المناظر الطبيعية', 'https://m.youtube.com/results?search_query=%D9%85%D9%86%D8%A7%D8%B8%D8%B1+%D8%B7%D8%A8%D9%8A%D8%B9%D9%8A%D8%A9+%D8%AC%D9%85%D9%8A%D9%84%D8%A9'),
-          _buildVideoCard('Relaxing Rain Sounds', 'https://m.youtube.com/results?search_query=relaxing+rain+sounds'),
-          _buildVideoCard('قهوة الصباح', 'https://m.youtube.com/results?search_query=%D9%82%D9%87%D9%88%D8%A9+%D8%A7%D9%84%D8%B5%D8%A8%D8%A7%D8%AD'),
-          _buildVideoCard('Ocean Waves', 'https://m.youtube.com/results?search_query=ocean+waves+relaxing'),
+          _buildVideoCard('مقاطع مضحكة جداً', 'https://www.youtube.com/results?search_query=funny+videos+2026'),
+          _buildVideoCard('Stand-up Comedy', 'https://www.youtube.com/results?search_query=ستاند+اب+كوميدي+مصري'),
+          _buildVideoCard('تحفيز للدراسة والعمل', 'https://www.youtube.com/results?search_query=motivational+videos+arabic'),
+          _buildVideoCard('Cute Puppies', 'https://www.youtube.com/results?search_query=cute+puppies+compilation'),
+          _buildVideoCard('ناشيونال جيوغرافيك مضحك', 'https://www.youtube.com/results?search_query=funny+animals+national+geographic'),
+          _buildVideoCard('Life Hacks', 'https://www.youtube.com/results?search_query=amazing+life+hacks'),
         ];
       case 'angry':
         return [
-          _buildVideoCard('تمارين التنفس', 'https://m.youtube.com/results?search_query=%D8%AA%D9%85%D8%A7%D8%B1%D9%8A%D9%86+%D8%AA%D9%86%D9%81%D8%B3'),
-          _buildVideoCard('Meditation for Calm', 'https://m.youtube.com/results?search_query=meditation+for+anger+calm'),
-          _buildVideoCard('يوغا للمبتدئين', 'https://m.youtube.com/results?search_query=%D9%8A%D9%88%D8%BA%D8%A7+%D9%84%D9%84%D9%85%D8%A8%D8%AA%D8%AF%D8%A6%D9%8A%D9%86'),
-          _buildVideoCard('Stress Relief Sounds', 'https://m.youtube.com/results?search_query=stress+relief+sounds'),
-          _buildVideoCard('قصص ملهمة', 'https://m.youtube.com/results?search_query=%D9%82%D8%B5%D8%B5+%D9%85%D9%84%D9%87%D9%85%D8%A9'),
-          _buildVideoCard('Calming Piano Music', 'https://m.youtube.com/results?search_query=calming+piano+music'),
+          _buildVideoCard('تمارين تنفس عميق', 'https://www.youtube.com/results?search_query=deep+breathing+exercises'),
+          _buildVideoCard('ASMR Satisfying', 'https://www.youtube.com/results?search_query=satisfying+video+asmr'),
+          _buildVideoCard('موسيقى هادئة للأعصاب', 'https://www.youtube.com/results?search_query=calm+music+for+anger'),
+          _buildVideoCard('Yoga for Beginners', 'https://www.youtube.com/results?search_query=yoga+for+relaxation'),
+          _buildVideoCard('Nature Scenery 4K', 'https://www.youtube.com/results?search_query=nature+4k+relax'),
+          _buildVideoCard('قصص تفاؤل', 'https://www.youtube.com/results?search_query=inspiring+short+stories'),
+        ];
+      case 'fear':
+      case 'disgust':
+        return [
+          _buildVideoCard('كيف تتغلب على القلق', 'https://www.youtube.com/results?search_query=overcoming+anxiety+tips'),
+          _buildVideoCard('Guided Meditation', 'https://www.youtube.com/results?search_query=meditation+for+fear'),
+          _buildVideoCard('تحديات ممتعة', 'https://www.youtube.com/results?search_query=fun+challenges+videos'),
+          _buildVideoCard('Beautiful Cities', 'https://www.youtube.com/results?search_query=beautiful+cities+walkthrough'),
+          _buildVideoCard('Positive Affirmations', 'https://www.youtube.com/results?search_query=positive+affirmations+arabic'),
+          _buildVideoCard('إبداع يدوي', 'https://www.youtube.com/results?search_query=creative+art+process'),
+        ];
+      case 'neutral':
+        return [
+          _buildVideoCard('وثائقي قصير', 'https://www.youtube.com/results?search_query=short+documentary+interesting'),
+          _buildVideoCard('Tech Reviews', 'https://www.youtube.com/results?search_query=latest+tech+gadgets+2026'),
+          _buildVideoCard('تعلم مهارة جديدة', 'https://www.youtube.com/results?search_query=learn+new+skill+in+5+minutes'),
+          _buildVideoCard('Space Exploration', 'https://www.youtube.com/results?search_query=space+and+planets+discovery'),
+          _buildVideoCard('بودكاست ملهم', 'https://www.youtube.com/results?search_query=inspiring+podcast+arabic'),
+          _buildVideoCard('Top 10 Facts', 'https://www.youtube.com/results?search_query=top+10+interesting+facts'),
+        ];
+      case 'surprise':
+        return [
+          _buildVideoCard('خدع سحرية مذهلة', 'https://www.youtube.com/results?search_query=amazing+magic+tricks+revealed'),
+          _buildVideoCard('Sci-Fi Concept Art', 'https://www.youtube.com/results?search_query=future+technology+concepts'),
+          _buildVideoCard('Reaction Videos', 'https://www.youtube.com/results?search_query=funny+reaction+videos'),
+          _buildVideoCard('Science Experiments', 'https://www.youtube.com/results?search_query=cool+science+experiments'),
+          _buildVideoCard('أغرب أماكن في العالم', 'https://www.youtube.com/results?search_query=strangest+places+on+earth'),
+          _buildVideoCard('Optical Illusions', 'https://www.youtube.com/results?search_query=best+optical+illusions'),
         ];
       case 'happy':
       default:
         return [
-          _buildVideoCard('رقصات شعبية', 'https://m.youtube.com/results?search_query=%D8%B1%D9%82%D8%B5%D8%A7%D8%AA+%D8%B4%D8%B9%D8%A8%D9%8A%D8%A9'),
-          _buildVideoCard('Happy Dogs', 'https://m.youtube.com/results?search_query=happy+dogs'),
-          _buildVideoCard('فرح وعيله', 'https://m.youtube.com/results?search_query=%D9%81%D9%8A%D8%AF%D9%8A%D9%88%D9%87%D8%A7%D8%AA+%D9%81%D8%B1%D8%AD'),
-          _buildVideoCard('Dancing Parrot', 'https://m.youtube.com/results?search_query=dancing+parrot'),
-          _buildVideoCard('أحلى لحظات', 'https://m.youtube.com/results?search_query=%D8%A3%D8%AD%D9%84%D9%89+%D9%84%D8%AD%D8%B8%D8%A7%D8%AA'),
-          _buildVideoCard('Puppies Playing', 'https://m.youtube.com/results?search_query=cute+puppies+playing'),
+          _buildVideoCard('أغاني مبهجة', 'https://www.youtube.com/results?search_query=happy+upbeat+songs'),
+          _buildVideoCard('Celebration Moments', 'https://www.youtube.com/results?search_query=best+celebration+moments'),
+          _buildVideoCard('مقالب مضحكة', 'https://www.youtube.com/results?search_query=funny+pranks+clean'),
+          _buildVideoCard('Travel Vlogs', 'https://www.youtube.com/results?search_query=fun+travel+vlogs'),
+          _buildVideoCard('Kids Playing', 'https://www.youtube.com/results?search_query=kids+funny+moments'),
+          _buildVideoCard('فلوجات يومية ممتعة', 'https://www.youtube.com/results?search_query=daily+vlogs+fun'),
         ];
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final bool isSad = emotion.toLowerCase() == 'sad';
-    final bool isNeutral = emotion.toLowerCase() == 'neutral';
-    final Color abColor = isSad ? Colors.white : (isNeutral ? const Color(0xFFB18F6A) : ThemeColors.redColor);
-    final Color fgColor = isSad ? Colors.black : Colors.white;
-
     return Scaffold(
       appBar: AppBar(
-        title: Text('${emotion.toUpperCase()} Videos'),
-        backgroundColor: abColor,
-        foregroundColor: fgColor,
+        title: Text('${emotion.toUpperCase()} VIDEOS'),
+        backgroundColor: const Color(0xFFC04F4C),
         elevation: 0,
       ),
       body: BackgroundWidget(
         emotion: emotion,
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: GridView.count(
-            crossAxisCount: 2,
-            crossAxisSpacing: 15,
-            mainAxisSpacing: 15,
-            childAspectRatio: 0.8,
-            children: _buildVideosForEmotion(emotion),
-          ),
+        child: GridView.count(
+          padding: const EdgeInsets.all(15),
+          crossAxisCount: 2,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: 0.9,
+          physics: const BouncingScrollPhysics(),
+          children: _buildVideosForEmotion(emotion),
         ),
       ),
     );
