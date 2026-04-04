@@ -46,9 +46,9 @@ class _DetectionScreenState extends State<DetectionScreen> {
 
   Future<void> loadModel() async {
     try {
-      _interpreter = await Interpreter.fromAsset('assets/model/Face_model125.tflite');
+      _interpreter = await Interpreter.fromAsset('assets/model/Face_model122.tflite');
     } catch (e) {
-      debugPrint("Error loading model: $e");
+      debugPrint("Error: $e");
     }
   }
 
@@ -104,7 +104,6 @@ class _DetectionScreenState extends State<DetectionScreen> {
     if (image == null) return [];
 
     img.Image resized = img.copyResize(image, width: 48, height: 48);
-
     var input = List.generate(1, (i) =>
         List.generate(48, (j) =>
             List.generate(48, (k) => List.filled(3, 0.0))
@@ -142,13 +141,17 @@ class _DetectionScreenState extends State<DetectionScreen> {
       }
 
       String result = emotions[index];
+
       setState(() {
         predictedEmotion = result;
         isLoading = false;
       });
 
-      await Future.delayed(const Duration(milliseconds: 800));
-      _navigateToRecommendations(result);
+      await Future.delayed(const Duration(milliseconds: 1500));
+
+      if (mounted) {
+        _navigateToRecommendations(result);
+      }
     } catch (e) {
       setState(() => isLoading = false);
     }
@@ -319,14 +322,20 @@ class _DetectionScreenState extends State<DetectionScreen> {
                   const SizedBox(height: 20),
                   if (predictedEmotion != null)
                     Container(
-                      padding: const EdgeInsets.all(10),
+                      padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.6),
-                        borderRadius: BorderRadius.circular(10),
+                        color: Colors.white.withOpacity(0.9),
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 10,
+                          )
+                        ],
                       ),
                       child: Text(
-                        'Result: $predictedEmotion',
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
+                        'Your Mood: $predictedEmotion',
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFFC05A4E)),
                       ),
                     ),
                   const SizedBox(height: 30),
