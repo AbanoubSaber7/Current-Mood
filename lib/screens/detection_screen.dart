@@ -1,6 +1,9 @@
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
+import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:tflite_flutter/tflite_flutter.dart';
@@ -21,13 +24,22 @@ class _DetectionScreenState extends State<DetectionScreen> {
   File? _pickedFile;
   String? _pickedFileName;
   String? predictedEmotion;
+  /// ثقة التنبؤ 0–100 بعد softmax (أو توزيع احتمالات من الموديل).
+  double? predictedConfidencePercent;
   String? manualSelectedEmotion;
   bool isLoading = false;
   bool isImage = false;
 
   final ImagePicker _picker = ImagePicker();
   Interpreter? _interpreter;
+  FaceDetector? _faceDetector;
 
+  static bool get _canUseMlKitFace =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS);
+
+  // ترتيب المشاعر مهم جداً لازم يطابق ترتيب المجلدات في بايثون
   final List<String> emotions = [
     'Angry',
     'Disgust',
@@ -41,14 +53,34 @@ class _DetectionScreenState extends State<DetectionScreen> {
   @override
   void initState() {
     super.initState();
+    if (_canUseMlKitFace) {
+      _faceDetector = FaceDetector(
+        options: FaceDetectorOptions(
+          performanceMode: FaceDetectorMode.accurate,
+          enableContours: false,
+          enableLandmarks: false,
+          enableClassification: false,
+          minFaceSize: 0.12,
+        ),
+      );
+    }
     loadModel();
+  }
+
+  @override
+  void dispose() {
+    _faceDetector?.close();
+    _interpreter?.close();
+    super.dispose();
   }
 
   Future<void> loadModel() async {
     try {
+      // تأكد من اسم ملف الموديل في الـ assets
       _interpreter = await Interpreter.fromAsset('assets/model/Face_model122.tflite');
+      debugPrint("Model Loaded Successfully");
     } catch (e) {
-      debugPrint("Error: $e");
+      debugPrint("Error loading model: $e");
     }
   }
 
@@ -68,42 +100,110 @@ class _DetectionScreenState extends State<DetectionScreen> {
         isImage = true;
         manualSelectedEmotion = null;
         predictedEmotion = null;
+        predictedConfidencePercent = null;
       });
     }
   }
 
-  Future<void> _pickVideo(ImageSource source) async {
-    final XFile? video = await _picker.pickVideo(source: source);
-    if (video != null) {
-      setState(() {
-        _pickedFile = File(video.path);
-        _pickedFileName = video.name;
-        isImage = false;
-        manualSelectedEmotion = null;
-        predictedEmotion = null;
-      });
+  List<double> _softmax(List<double> logits) {
+    if (logits.isEmpty) return [];
+    final m = logits.reduce(math.max);
+    var sum = 0.0;
+    final exps = <double>[];
+    for (final x in logits) {
+      final e = math.exp(x - m);
+      exps.add(e);
+      sum += e;
     }
+    if (sum <= 0) return List.filled(logits.length, 1.0 / logits.length);
+    return exps.map((e) => e / sum).toList();
   }
 
-  Future<void> _pickAudio() async {
-    FilePickerResult? result = await FilePicker.platform.pickFiles(type: FileType.audio);
-    if (result != null) {
-      setState(() {
-        _pickedFile = File(result.files.single.path!);
-        _pickedFileName = result.files.single.name;
-        isImage = false;
-        manualSelectedEmotion = null;
-        predictedEmotion = null;
-      });
+  /// يدعم موديلات تخرج logits أو احتمالات (softmax).
+  List<double> _rawScoresToProbabilities(List<double> raw) {
+    if (raw.isEmpty) return raw;
+    final sum = raw.fold<double>(0, (a, b) => a + b);
+    final allNonNeg = raw.every((v) => v >= -1e-6);
+    final looksProb =
+        allNonNeg && sum > 0.9 && sum < 1.1 && raw.every((v) => v <= 1.0 + 1e-6);
+    if (looksProb) {
+      final s = sum <= 0 ? 1.0 : sum;
+      return raw.map((v) => (v / s).clamp(0.0, 1.0)).toList();
     }
+    return _softmax(raw);
   }
 
-  List<dynamic> preprocessImage(File file) {
+  Face _largestFace(List<Face> faces) {
+    Face best = faces.first;
+    double bestArea = best.boundingBox.width * best.boundingBox.height;
+    for (final f in faces.skip(1)) {
+      final a = f.boundingBox.width * f.boundingBox.height;
+      if (a > bestArea) {
+        best = f;
+        bestArea = a;
+      }
+    }
+    return best;
+  }
+
+  /// قص منطقة الوجه مع هامش بسيط؛ يطابق تدريب FER عادةً (وجه فقط وليس الإطار كامل).
+  img.Image _cropFaceRegion(img.Image image, Face face, {double padFraction = 0.22}) {
+    final box = face.boundingBox;
+    final iw = image.width.toDouble();
+    final ih = image.height.toDouble();
+    double left = box.left - box.width * padFraction;
+    double top = box.top - box.height * padFraction;
+    double right = box.right + box.width * padFraction;
+    double bottom = box.bottom + box.height * padFraction;
+    left = left.clamp(0.0, iw - 1);
+    top = top.clamp(0.0, ih - 1);
+    right = right.clamp(left + 1, iw);
+    bottom = bottom.clamp(top + 1, ih);
+    final x = left.floor();
+    final y = top.floor();
+    var w = (right - left).ceil();
+    var h = (bottom - top).ceil();
+    w = w.clamp(1, image.width - x);
+    h = h.clamp(1, image.height - y);
+    return img.copyCrop(image, x: x, y: y, width: w, height: h);
+  }
+
+  /// بدون كشف وجه: مربع من المنتصف ثم تصغير — أوضح من ضغط الصورة كاملة (تشويه).
+  img.Image _centerSquareCrop(img.Image image) {
+    final w = image.width;
+    final h = image.height;
+    if (w <= 0 || h <= 0) return image;
+    final side = w < h ? w : h;
+    final x = (w - side) ~/ 2;
+    final y = (h - side) ~/ 2;
+    return img.copyCrop(image, x: x, y: y, width: side, height: side);
+  }
+
+  Future<List<dynamic>> preprocessImage(File file) async {
     Uint8List bytes = file.readAsBytesSync();
     img.Image? image = img.decodeImage(bytes);
     if (image == null) return [];
 
-    img.Image resized = img.copyResize(image, width: 48, height: 48);
+    img.Image region = image;
+    if (_faceDetector != null) {
+      try {
+        final inputImage = InputImage.fromFilePath(file.path);
+        final faces = await _faceDetector!.processImage(inputImage);
+        if (faces.isNotEmpty) {
+          region = _cropFaceRegion(image, _largestFace(faces));
+        } else {
+          region = _centerSquareCrop(image);
+        }
+      } catch (e) {
+        debugPrint('Face detection skipped: $e');
+        region = _centerSquareCrop(image);
+      }
+    } else {
+      region = _centerSquareCrop(image);
+    }
+
+    img.Image resized = img.copyResize(region, width: 48, height: 48);
+
     var input = List.generate(1, (i) =>
         List.generate(48, (j) =>
             List.generate(48, (k) => List.filled(3, 0.0))
@@ -121,38 +221,52 @@ class _DetectionScreenState extends State<DetectionScreen> {
     return input;
   }
 
+  // --- التعديل في عملية التنبؤ ---
   Future<void> _predictFromModel() async {
-    if (_interpreter == null) return;
+    if (_interpreter == null || _pickedFile == null) return;
     setState(() => isLoading = true);
 
     try {
-      var input = preprocessImage(_pickedFile!);
+      var input = await preprocessImage(_pickedFile!);
+      if (input.isEmpty) {
+        setState(() => isLoading = false);
+        return;
+      }
+
+      // المخرجات مصفوفة [1, 7] بناءً على عدد المشاعر
       var output = List.filled(1 * 7, 0.0).reshape([1, 7]);
 
+      // تشغيل الموديل (العملية الحسابية)
       _interpreter!.run(input, output);
 
+      final raw = List<double>.generate(7, (i) => (output[0][i] as num).toDouble());
+      final probs = _rawScoresToProbabilities(raw);
       int index = 0;
-      double maxVal = output[0][0];
+      double bestP = probs[0];
       for (int i = 1; i < 7; i++) {
-        if (output[0][i] > maxVal) {
-          maxVal = output[0][i];
+        if (probs[i] > bestP) {
+          bestP = probs[i];
           index = i;
         }
       }
 
+      final confidencePct = (bestP * 100).clamp(0.0, 100.0);
       String result = emotions[index];
 
       setState(() {
         predictedEmotion = result;
+        predictedConfidencePercent = confidencePct;
         isLoading = false;
       });
 
-      await Future.delayed(const Duration(milliseconds: 1500));
+      // تأخير بسيط لعرض النتيجة ثم الانتقال
+      await Future.delayed(const Duration(milliseconds: 1700));
 
       if (mounted) {
         _navigateToRecommendations(result);
       }
     } catch (e) {
+      debugPrint("Prediction Error: $e");
       setState(() => isLoading = false);
     }
   }
@@ -182,6 +296,35 @@ class _DetectionScreenState extends State<DetectionScreen> {
     );
   }
 
+  // دوال الـ UI والمظهر
+  Future<void> _pickVideo(ImageSource source) async {
+    final XFile? video = await _picker.pickVideo(source: source);
+    if (video != null) {
+      setState(() {
+        _pickedFile = File(video.path);
+        _pickedFileName = video.name;
+        isImage = false;
+        manualSelectedEmotion = null;
+        predictedEmotion = null;
+        predictedConfidencePercent = null;
+      });
+    }
+  }
+
+  Future<void> _pickAudio() async {
+    FilePickerResult? result = await FilePicker.platform.pickFiles(type: FileType.audio);
+    if (result != null) {
+      setState(() {
+        _pickedFile = File(result.files.single.path!);
+        _pickedFileName = result.files.single.name;
+        isImage = false;
+        manualSelectedEmotion = null;
+        predictedEmotion = null;
+        predictedConfidencePercent = null;
+      });
+    }
+  }
+
   Widget _buildButton(String text, IconData icon, VoidCallback onPressed) {
     return ElevatedButton.icon(
       onPressed: onPressed,
@@ -205,9 +348,7 @@ class _DetectionScreenState extends State<DetectionScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () {
-            Navigator.pushReplacementNamed(context, '/');
-          },
+          onPressed: () => Navigator.pushReplacementNamed(context, '/'),
         ),
         actions: [
           IconButton(
@@ -293,6 +434,7 @@ class _DetectionScreenState extends State<DetectionScreen> {
                             manualSelectedEmotion = newValue;
                             _pickedFile = null;
                             predictedEmotion = null;
+                            predictedConfidencePercent = null;
                           });
                         },
                       ),
@@ -327,15 +469,28 @@ class _DetectionScreenState extends State<DetectionScreen> {
                         color: Colors.white.withOpacity(0.9),
                         borderRadius: BorderRadius.circular(12),
                         boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
-                            blurRadius: 10,
-                          )
+                          BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10)
                         ],
                       ),
-                      child: Text(
-                        'Your Mood: $predictedEmotion',
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFFC05A4E)),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Your Mood: $predictedEmotion',
+                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFFC05A4E)),
+                          ),
+                          if (predictedConfidencePercent != null) ...[
+                            const SizedBox(height: 6),
+                            Text(
+                              'Confidence: ${predictedConfidencePercent!.toStringAsFixed(1)}%',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.brown.shade700,
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ),
                   const SizedBox(height: 30),
