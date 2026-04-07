@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fl_chart/fl_chart.dart';
 
 import 'package:mood_app/models/mood_history_entry.dart';
 import 'package:mood_app/services/mood_history_service.dart';
@@ -16,6 +17,16 @@ class _MoodHistoryScreenState extends State<MoodHistoryScreen> {
   final _service = MoodHistoryService();
   List<MoodHistoryEntry> _entries = const [];
   bool _loading = true;
+  static const List<String> _emotionOrder = [
+    'Neutral',
+    'Happy',
+    'Surprise',
+    'Sad',
+    'Angry',
+    'Disgust',
+    'Fear',
+    'Contempt',
+  ];
 
   @override
   void initState() {
@@ -40,6 +51,113 @@ class _MoodHistoryScreenState extends State<MoodHistoryScreen> {
   String _formatTs(DateTime dt) {
     String two(int n) => n.toString().padLeft(2, '0');
     return '${dt.year}-${two(dt.month)}-${two(dt.day)}  ${two(dt.hour)}:${two(dt.minute)}';
+  }
+
+  List<BarChartGroupData> _buildMoodCountBars() {
+    final counts = <String, int>{
+      for (final e in _emotionOrder) e: 0,
+    };
+    for (final entry in _entries) {
+      final key = entry.emotion;
+      counts[key] = (counts[key] ?? 0) + 1;
+    }
+
+    return List.generate(_emotionOrder.length, (i) {
+      final emotion = _emotionOrder[i];
+      final value = (counts[emotion] ?? 0).toDouble();
+      return BarChartGroupData(
+        x: i,
+        barRods: [
+          BarChartRodData(
+            toY: value,
+            width: 14,
+            borderRadius: BorderRadius.circular(6),
+            color: const Color(0xFFC04F4C),
+          ),
+        ],
+      );
+    });
+  }
+
+  Widget _buildChartCard() {
+    final maxCount = _entries.isEmpty ? 1 : _entries.length;
+    final barGroups = _buildMoodCountBars();
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.92),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 12, offset: const Offset(0, 6)),
+        ],
+      ),
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Mood distribution (last 20)',
+            style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF4E342E)),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 190,
+            child: BarChart(
+              BarChartData(
+                maxY: (maxCount.toDouble()).clamp(1, 20),
+                minY: 0,
+                alignment: BarChartAlignment.spaceAround,
+                gridData: FlGridData(show: true, drawVerticalLine: false),
+                borderData: FlBorderData(show: false),
+                barGroups: barGroups,
+                titlesData: FlTitlesData(
+                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 28,
+                      interval: 1,
+                      getTitlesWidget: (value, meta) {
+                        if (value % 1 != 0) return const SizedBox.shrink();
+                        return Text(
+                          value.toInt().toString(),
+                          style: const TextStyle(fontSize: 10, color: Colors.black54),
+                        );
+                      },
+                    ),
+                  ),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 38,
+                      getTitlesWidget: (value, meta) {
+                        final i = value.toInt();
+                        if (i < 0 || i >= _emotionOrder.length) return const SizedBox.shrink();
+                        final label = _emotionOrder[i];
+                        final short = label.length <= 3 ? label : label.substring(0, 3);
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Transform.rotate(
+                            angle: -0.6,
+                            child: Text(short, style: const TextStyle(fontSize: 10, color: Colors.black54)),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Total entries: ${_entries.length}',
+            style: const TextStyle(fontSize: 12, color: Colors.black54),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -72,10 +190,12 @@ class _MoodHistoryScreenState extends State<MoodHistoryScreen> {
                       ),
                     )
                   : ListView.separated(
-                      itemCount: _entries.length,
+                      itemCount: _entries.length + 1,
                       separatorBuilder: (_, __) => const SizedBox(height: 10),
                       itemBuilder: (context, i) {
-                        final e = _entries[i];
+                        if (i == 0) return _buildChartCard();
+
+                        final e = _entries[i - 1];
                         final conf = e.confidencePercent;
                         final confText = conf == null ? '—' : '${conf.toStringAsFixed(1)}%';
                         final subtitle = [
