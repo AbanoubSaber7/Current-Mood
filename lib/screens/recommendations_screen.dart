@@ -19,7 +19,7 @@ class RecommendationsScreen extends StatefulWidget {
     required this.emotion,
     this.confidencePercent,
     this.source = 'model',
-‍  }) : super(key: key);
+  }) : super(key: key);
 
   @override
   State<RecommendationsScreen> createState() => _RecommendationsScreenState();
