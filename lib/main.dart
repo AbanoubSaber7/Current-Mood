@@ -5,6 +5,7 @@ import 'firebase_options.dart';
 import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/detection_screen.dart';
+import 'screens/mood_history_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -42,6 +43,7 @@ class MoodApp extends StatelessWidget {
         '/': (context) => const SplashScreen(),
         '/login': (context) => const LoginScreen(),
         '/detection': (context) => DetectionScreen(userName: userName ?? "User"),
+        '/history': (context) => MoodHistoryScreen(userName: userName ?? "User"),
       },
     );
   }

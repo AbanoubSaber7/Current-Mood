@@ -34,21 +34,26 @@ class _DetectionScreenState extends State<DetectionScreen> {
   Interpreter? _interpreter;
   FaceDetector? _faceDetector;
 
+  /// يُحدَّد بعد التحميل من شكل مخرجات الـ TFLite (FER+ = 8 فئات).
+  int _numClasses = 8;
+  int _inputChannels = 1;
+
+  /// ترتيب vicksam / FER-Plus (dataset.py COLUMN_NAMES بعد fer_code).
+  static const List<String> _emotionLabels = [
+    'Neutral',
+    'Happy',
+    'Surprise',
+    'Sad',
+    'Angry',
+    'Disgust',
+    'Fear',
+    'Contempt',
+  ];
+
   static bool get _canUseMlKitFace =>
       !kIsWeb &&
       (defaultTargetPlatform == TargetPlatform.android ||
           defaultTargetPlatform == TargetPlatform.iOS);
-
-  // ترتيب المشاعر مهم جداً لازم يطابق ترتيب المجلدات في بايثون
-  final List<String> emotions = [
-    'Angry',
-    'Disgust',
-    'Fear',
-    'Happy',
-    'Neutral',
-    'Sad',
-    'Surprise'
-  ];
 
   @override
   void initState() {
@@ -74,14 +79,43 @@ class _DetectionScreenState extends State<DetectionScreen> {
     super.dispose();
   }
 
-  Future<void> loadModel() async {
-    try {
-      // تأكد من اسم ملف الموديل في الـ assets
-      _interpreter = await Interpreter.fromAsset('assets/model/Face_model122.tflite');
-      debugPrint("Model Loaded Successfully");
-    } catch (e) {
-      debugPrint("Error loading model: $e");
+  void _applyModelIOShapes() {
+    if (_interpreter == null) return;
+    final inShape = _interpreter!.getInputTensor(0).shape;
+    final outShape = _interpreter!.getOutputTensor(0).shape;
+    if (inShape.length == 4) {
+      if (inShape[1] == 48 && inShape[2] == 48) {
+        _inputChannels = inShape[3];
+      } else if (inShape[2] == 48 && inShape[3] == 48) {
+        _inputChannels = inShape[1];
+      } else {
+        _inputChannels = inShape[3];
+      }
     }
+    if (outShape.length >= 2) {
+      _numClasses = outShape[1];
+    } else if (outShape.length == 1) {
+      _numClasses = outShape[0];
+    }
+  }
+
+  Future<void> loadModel() async {
+    _interpreter?.close();
+    _interpreter = null;
+    _numClasses = 8;
+    _inputChannels = 1;
+
+    const assetPath = 'assets/model/ferplus_model_pd_best.tflite';
+    try {
+      _interpreter = await Interpreter.fromAsset(assetPath);
+      _applyModelIOShapes();
+      debugPrint('TFLite OK: $assetPath  classes=$_numClasses  ch=$_inputChannels');
+    } catch (e) {
+      debugPrint('Error loading TFLite: $e');
+      _interpreter?.close();
+      _interpreter = null;
+    }
+    if (mounted) setState(() {});
   }
 
   Future<void> handleLogout() async {
@@ -204,6 +238,23 @@ class _DetectionScreenState extends State<DetectionScreen> {
 
     img.Image resized = img.copyResize(region, width: 48, height: 48);
 
+    if (_inputChannels == 1) {
+      var input = List.generate(1, (i) =>
+          List.generate(48, (j) =>
+              List.generate(48, (k) => List.filled(1, 0.0))
+          )
+      );
+      for (int y = 0; y < 48; y++) {
+        for (int x = 0; x < 48; x++) {
+          final pixel = resized.getPixel(x, y);
+          final gray =
+              (0.299 * pixel.r + 0.587 * pixel.g + 0.114 * pixel.b) / 255.0;
+          input[0][y][x][0] = gray;
+        }
+      }
+      return input;
+    }
+
     var input = List.generate(1, (i) =>
         List.generate(48, (j) =>
             List.generate(48, (k) => List.filled(3, 0.0))
@@ -233,17 +284,18 @@ class _DetectionScreenState extends State<DetectionScreen> {
         return;
       }
 
-      // المخرجات مصفوفة [1, 7] بناءً على عدد المشاعر
-      var output = List.filled(1 * 7, 0.0).reshape([1, 7]);
+      var output = List.filled(1 * _numClasses, 0.0).reshape([1, _numClasses]);
 
-      // تشغيل الموديل (العملية الحسابية)
       _interpreter!.run(input, output);
 
-      final raw = List<double>.generate(7, (i) => (output[0][i] as num).toDouble());
+      final raw = List<double>.generate(
+        _numClasses,
+        (i) => (output[0][i] as num).toDouble(),
+      );
       final probs = _rawScoresToProbabilities(raw);
       int index = 0;
       double bestP = probs[0];
-      for (int i = 1; i < 7; i++) {
+      for (int i = 1; i < _numClasses; i++) {
         if (probs[i] > bestP) {
           bestP = probs[i];
           index = i;
@@ -251,7 +303,11 @@ class _DetectionScreenState extends State<DetectionScreen> {
       }
 
       final confidencePct = (bestP * 100).clamp(0.0, 100.0);
-      String result = emotions[index];
+      if (index >= _emotionLabels.length) {
+        setState(() => isLoading = false);
+        return;
+      }
+      String result = _emotionLabels[index];
 
       setState(() {
         predictedEmotion = result;
@@ -263,7 +319,11 @@ class _DetectionScreenState extends State<DetectionScreen> {
       await Future.delayed(const Duration(milliseconds: 1700));
 
       if (mounted) {
-        _navigateToRecommendations(result);
+        _navigateToRecommendations(
+          result,
+          confidencePercent: confidencePct,
+          source: 'model',
+        );
       }
     } catch (e) {
       debugPrint("Prediction Error: $e");
@@ -273,17 +333,29 @@ class _DetectionScreenState extends State<DetectionScreen> {
 
   Future<void> _handleNavigation() async {
     if (manualSelectedEmotion != null && _pickedFile == null) {
-      _navigateToRecommendations(manualSelectedEmotion!);
+      _navigateToRecommendations(
+        manualSelectedEmotion!,
+        confidencePercent: null,
+        source: 'manual',
+      );
       return;
     }
     if (_pickedFile != null && isImage) {
       await _predictFromModel();
     } else if (_pickedFile != null && !isImage) {
-      _navigateToRecommendations("Neutral");
+      _navigateToRecommendations(
+        "Neutral",
+        confidencePercent: null,
+        source: 'fallback',
+      );
     }
   }
 
-  void _navigateToRecommendations(String finalEmotion) {
+  void _navigateToRecommendations(
+    String finalEmotion, {
+    double? confidencePercent,
+    String source = 'model',
+  }) {
     if (!mounted) return;
     Navigator.push(
       context,
@@ -291,6 +363,8 @@ class _DetectionScreenState extends State<DetectionScreen> {
         builder: (context) => RecommendationsScreen(
           userName: widget.userName,
           emotion: finalEmotion,
+          confidencePercent: confidencePercent,
+          source: source,
         ),
       ),
     );
@@ -423,7 +497,7 @@ class _DetectionScreenState extends State<DetectionScreen> {
                         value: manualSelectedEmotion,
                         hint: const Text("Select Mood Manually"),
                         isExpanded: true,
-                        items: emotions.map((String value) {
+                        items: _emotionLabels.map((value) {
                           return DropdownMenuItem<String>(
                             value: value,
                             child: Text(value, style: const TextStyle(color: Colors.brown)),
