@@ -155,8 +155,8 @@ def main() -> int:
 
     print("Saved:", args.out)
     print(
-        "Copy the file to your Flutter project as assets/model/Face_model122.tflite\n"
-        "(replace the old one) or add a new asset name and update Interpreter.fromAsset in detection_screen.dart."
+        "Copy the file to assets/model/ and register it in pubspec.yaml;\n"
+        "update Interpreter.fromAsset in detection_screen.dart if the filename differs."
     )
     return 0
 

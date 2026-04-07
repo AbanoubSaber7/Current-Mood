@@ -27,6 +27,7 @@ class BackgroundWidget extends StatelessWidget {
       case 'fear':
         return BackgroundTheme(const Color(0xFF1A1A2E), const Color(0xFF16213E), Colors.white);
       case 'disgust':
+      case 'contempt':
         return BackgroundTheme(const Color(0xFF1E2611), const Color(0xFF3B4D28), Colors.white);
       case 'surprise':
         return BackgroundTheme(const Color(0xFFFFF9E3), const Color(0xFFF1C40F), Colors.black87);
