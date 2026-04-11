@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:mood_app/screens/detection_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -14,63 +15,89 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final nameController = TextEditingController();
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
+  final confirmPasswordController = TextEditingController();
   bool isLoading = false;
-  bool _isObscured = true; // التحكم في إظهار/إخفاء الباسورد
+  bool _isObscured = true;
+  bool _isConfirmObscured = true;
 
   void handleSignUp() async {
     String userName = nameController.text.trim();
     String email = emailController.text.trim();
     String password = passwordController.text;
+    String confirmPassword = confirmPasswordController.text;
 
-    // 1. التأكد أن الحقول ليست فارغة
-    if (userName.isEmpty || email.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please fill all fields")),
-      );
+    if (userName.isEmpty || email.isEmpty || password.isEmpty || confirmPassword.isEmpty) {
+      _showSnackBar("All fields are required to create an account.");
       return;
     }
 
-    // 2. الميزة المطلوبة: التأكد أن الباسورد لا يقل عن 8 حروف
     if (password.length < 8) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Password must be at least 8 characters long"),
-          backgroundColor: Colors.orange,
-        ),
-      );
+      _showSnackBar("Password is too short. Minimum 8 characters required.");
+      return;
+    }
+
+    if (password != confirmPassword) {
+      _showSnackBar("Passwords do not match. Please verify and try again.");
       return;
     }
 
     setState(() => isLoading = true);
 
     try {
-      // تخزين البيانات في Firestore
-      await FirebaseFirestore.instance.collection('users').add({
+      UserCredential userCredential = await FirebaseAuth.instance
+          .createUserWithEmailAndPassword(email: email, password: password);
+
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userCredential.user!.uid)
+          .set({
         'full_name': userName,
         'email': email,
-        'password': password,
         'createdAt': FieldValue.serverTimestamp(),
+        'uid': userCredential.user!.uid,
       });
 
-      // حفظ الاسم في الذاكرة المحلية
       SharedPreferences prefs = await SharedPreferences.getInstance();
       await prefs.setString('user_name', userName);
+      await prefs.setBool('isLoggedIn', true);
 
       if (!mounted) return;
-
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(
-          builder: (context) => DetectionScreen(userName: userName),
-        ),
+        MaterialPageRoute(builder: (context) => DetectionScreen(userName: userName)),
       );
+    } on FirebaseAuthException catch (e) {
+      String errorMessage;
+      switch (e.code) {
+        case 'email-already-in-use':
+          errorMessage = "This email is already registered.";
+          break;
+        case 'invalid-email':
+          errorMessage = "The email address provided is not valid.";
+          break;
+        case 'weak-password':
+          errorMessage = "The password provided is too weak.";
+          break;
+        default:
+          errorMessage = e.message ?? "Registration failed. Please try again.";
+      }
+      _showSnackBar(errorMessage);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Registration Failed: $e")),
-      );
+      _showSnackBar("An unexpected error occurred. Please try again.");
     } finally {
-      setState(() => isLoading = false);
+      if (mounted) setState(() => isLoading = false);
     }
+  }
+
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: const Color(0xFFC04F4C),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
   }
 
   @override
@@ -87,33 +114,47 @@ class _SignUpScreenState extends State<SignUpScreen> {
             ),
           ),
           child: Padding(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Text("Create Account",
-                    style: TextStyle(
-                        color: Color(0xFFC04F4C),
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold
-                    )
+                const SizedBox(height: 40),
+                const Text(
+                  "Create Account",
+                  style: TextStyle(
+                    color: Color(0xFFC04F4C),
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-                const SizedBox(height: 30),
-
-                _buildTextField(nameController, "Full Name", Icons.person),
-                const SizedBox(height: 15),
-                _buildTextField(emailController, "Email", Icons.email),
-                const SizedBox(height: 15),
-
-                // خانة الباسورد مع ميزة الإظهار والإخفاء
+                const SizedBox(height: 8),
+                const Text(
+                  "Join us to start tracking your mood",
+                  style: TextStyle(color: Colors.black54, fontSize: 16),
+                ),
+                const SizedBox(height: 40),
+                _buildTextField(nameController, "Full Name", Icons.person_outline),
+                const SizedBox(height: 16),
+                _buildTextField(emailController, "Email Address", Icons.email_outlined),
+                const SizedBox(height: 16),
                 _buildTextField(
-                    passwordController,
-                    "Password",
-                    Icons.lock,
-                    isPasswordField: true // برامتر جديد مخصص للباسورد
+                  passwordController,
+                  "Password",
+                  Icons.lock_outline,
+                  isPasswordField: true,
+                  isObscured: _isObscured,
+                  onToggle: () => setState(() => _isObscured = !_isObscured),
                 ),
-
-                const SizedBox(height: 25),
+                const SizedBox(height: 16),
+                _buildTextField(
+                  confirmPasswordController,
+                  "Confirm Password",
+                  Icons.lock_reset_outlined,
+                  isPasswordField: true,
+                  isObscured: _isConfirmObscured,
+                  onToggle: () => setState(() => _isConfirmObscured = !_isConfirmObscured),
+                ),
+                const SizedBox(height: 32),
                 isLoading
                     ? const CircularProgressIndicator(color: Color(0xFFC04F4C))
                     : SizedBox(
@@ -122,19 +163,36 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     onPressed: handleSignUp,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFFC04F4C),
-                      padding: const EdgeInsets.symmetric(vertical: 15),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      elevation: 2,
                     ),
-                    child: const Text("Sign Up", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                    child: const Text(
+                      "SIGN UP",
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1.2),
+                    ),
                   ),
                 ),
-                const SizedBox(height: 10),
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text("Already have an account? Login",
-                      style: TextStyle(color: Color(0xFFC04F4C), fontWeight: FontWeight.w600)
-                  ),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text("Already have an account? ", style: TextStyle(color: Colors.black87)),
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: const Text(
+                        "Login here",
+                        style: TextStyle(
+                          color: Color(0xFFC04F4C),
+                          fontWeight: FontWeight.bold,
+                          decoration: TextDecoration.underline,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
+                const SizedBox(height: 20),
               ],
             ),
           ),
@@ -143,31 +201,39 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 
-  // تعديل الـ Widget المساعد ليدعم أيقونة العين
-  Widget _buildTextField(TextEditingController controller, String label, IconData icon, {bool isPasswordField = false}) {
+  Widget _buildTextField(
+      TextEditingController controller,
+      String label,
+      IconData icon, {
+        bool isPasswordField = false,
+        bool? isObscured,
+        VoidCallback? onToggle,
+      }) {
     return TextField(
       controller: controller,
-      obscureText: isPasswordField ? _isObscured : false, // الإخفاء فقط لو كانت خانة باسورد
+      obscureText: isPasswordField ? (isObscured ?? true) : false,
+      style: const TextStyle(color: Colors.black87),
       decoration: InputDecoration(
         labelText: label,
+        labelStyle: const TextStyle(color: Colors.black54),
         prefixIcon: Icon(icon, color: const Color(0xFFC04F4C)),
-        // إضافة أيقونة العين فقط لو كانت خانة باسورد
         suffixIcon: isPasswordField
             ? IconButton(
-          icon: Icon(
-            _isObscured ? Icons.visibility_off : Icons.visibility,
-            color: const Color(0xFFC04F4C),
-          ),
-          onPressed: () {
-            setState(() {
-              _isObscured = !_isObscured;
-            });
-          },
+          icon: Icon((isObscured ?? true) ? Icons.visibility_off : Icons.visibility, color: const Color(0xFFC04F4C)),
+          onPressed: onToggle,
         )
             : null,
         filled: true,
         fillColor: Colors.white,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFFC04F4C), width: 1.5),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       ),
     );
   }

@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:mood_app/screens/login_screen.dart';
-import 'package:mood_app/screens/detection_screen.dart';
+import 'login_screen.dart';
+import 'detection_screen.dart';
 
 class SplashScreen extends StatelessWidget {
-  const SplashScreen({Key? key}) : super(key: key);
+  const SplashScreen({super.key});
 
   Future<void> _handleStartNavigation(BuildContext context) async {
+    // الفحص بيحصل هنا أول ما المستخدم يدوس على الزرار
     SharedPreferences prefs = await SharedPreferences.getInstance();
     bool isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
     String? userName = prefs.getString('user_name');
@@ -14,6 +15,7 @@ class SplashScreen extends StatelessWidget {
     if (!context.mounted) return;
 
     if (isLoggedIn) {
+      // لو مسجل يدخل على Detection
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -21,6 +23,7 @@ class SplashScreen extends StatelessWidget {
         ),
       );
     } else {
+      // لو مش مسجل يدخل على Login
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -70,21 +73,12 @@ class SplashScreen extends StatelessWidget {
                     onPressed: () => _handleStartNavigation(context),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFFC04F4C),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 50.0,
-                        vertical: 15.0,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(30.0),
-                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 50.0, vertical: 15.0),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30.0)),
                     ),
                     child: const Text(
                       'GET START',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
                     ),
                   ),
                 ),

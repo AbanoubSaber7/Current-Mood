@@ -22,8 +22,11 @@ dependencies:
   file_picker: ^10.3.10
   crypto: ^3.0.7
   firebase_core: ^4.6.0
+  firebase_auth: ^6.3.0
+  firebase_storage:
   cloud_firestore: ^6.2.0
   google_mlkit_face_detection: ^0.13.2
+
 
 dev_dependencies:
   flutter_test:
